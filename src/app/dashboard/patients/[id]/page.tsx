@@ -5,13 +5,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, User, Phone, Calendar, Activity, Pill, ChevronRight, FileText, Leaf, Stethoscope, Save, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { usePatient } from "@/hooks/usePatient";
+import { usePatient, usePatientHistory } from "@/hooks/usePatient";
+import { toast } from "sonner";
 
 export default function PatientProfile() {
   const params = useParams();
   const [activeTab, setActiveTab] = useState("overview");
-  const { patient, isLoading, error, updateModernEMR, updateAyurvedicEMR, updateDiagnosis } = usePatient(params.id as string);
+  const { patient, isLoading, error, updateModernEMR, updateAyurvedicEMR, updateDiagnosis, updatePatientInfo } = usePatient(params.id as string);
   
+  const [historyPage, setHistoryPage] = useState(1);
+  const { history, meta: historyMeta, isLoading: isHistoryLoading } = usePatientHistory(params.id as string, historyPage, 5);
+  const [expandedVisitId, setExpandedVisitId] = useState<string | null>(null);
+
   const [isSaving, setIsSaving] = useState(false);
 
   if (isLoading) {
@@ -38,14 +43,32 @@ export default function PatientProfile() {
 
   const handleSaveModern = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!latestVisit.id) {
+      toast.error('No visit selected to update');
+      return;
+    }
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
+    
+    // Split the data!
+    const patientData = {
+      pastHistory: data.pastHistory,
+      drugHistory: data.drugHistory
+    };
+    
+    // Remove patient fields from EMR payload
+    delete data.pastHistory;
+    delete data.drugHistory;
+
     try {
-      await updateModernEMR(data);
-      alert('Modern EMR saved successfully!');
+      await Promise.all([
+        updatePatientInfo(patientData),
+        updateModernEMR(latestVisit.id, data)
+      ]);
+      toast.success('Modern EMR & Patient Info saved successfully!');
     } catch (error) {
-      alert('Failed to save Modern EMR');
+      toast.error('Failed to save Modern EMR');
     } finally {
       setIsSaving(false);
     }
@@ -53,18 +76,22 @@ export default function PatientProfile() {
 
   const handleSaveAyurvedic = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!latestVisit.id) {
+      toast.error('No visit selected to update');
+      return;
+    }
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData.entries());
+    const data: Record<string, any> = Object.fromEntries(formData.entries());
     // Convert numeric fields back to numbers for Prisma
     if (data.vata) data.vata = Number(data.vata);
     if (data.pitta) data.pitta = Number(data.pitta);
     if (data.kapha) data.kapha = Number(data.kapha);
     try {
-      await updateAyurvedicEMR(data);
-      alert('Ayurvedic EMR saved successfully!');
+      await updateAyurvedicEMR(latestVisit.id, data);
+      toast.success('Ayurvedic EMR saved successfully!');
     } catch (error) {
-      alert('Failed to save Ayurvedic EMR');
+      toast.error('Failed to save Ayurvedic EMR');
     } finally {
       setIsSaving(false);
     }
@@ -72,14 +99,18 @@ export default function PatientProfile() {
 
   const handleSaveDiagnosis = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!latestVisit.id) {
+      toast.error('No visit selected to update');
+      return;
+    }
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
     try {
-      await updateDiagnosis(data);
-      alert('Diagnosis saved successfully!');
+      await updateDiagnosis(latestVisit.id, data);
+      toast.success('Diagnosis saved successfully!');
     } catch (error) {
-      alert('Failed to save Diagnosis');
+      toast.error('Failed to save Diagnosis');
     } finally {
       setIsSaving(false);
     }
@@ -183,33 +214,145 @@ export default function PatientProfile() {
                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                       <Calendar size={18} className="text-primary" /> Consultation History
                     </h3>
-                    <div className="border border-border rounded-xl overflow-hidden">
-                      {visits.length === 0 ? (
-                        <div className="p-6 text-center text-muted-foreground">No visits recorded.</div>
-                      ) : visits.map((visit: any, i: number) => (
-                        <div key={i} className={`p-6 flex items-start gap-4 hover:bg-muted/30 transition-colors ${i !== visits.length - 1 ? 'border-b border-border' : ''}`}>
-                          <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center border border-border shrink-0 mt-1">
-                            <FileText size={16} className="text-muted-foreground" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-bold text-base">{visit.reason}</h4>
-                                <p className="text-sm text-muted-foreground font-medium mt-0.5">Consulted {visit.doctor}</p>
+                    <div className="border border-border rounded-xl overflow-hidden mb-4">
+                      {isHistoryLoading ? (
+                        <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>
+                      ) : history.length === 0 ? (
+                        <div className="p-6 text-center text-muted-foreground">No past visits recorded.</div>
+                      ) : history.map((visit: any, i: number) => {
+                        const isExpanded = expandedVisitId === visit.id;
+                        return (
+                          <div key={visit.id} className={`flex flex-col hover:bg-muted/30 transition-colors ${i !== history.length - 1 ? 'border-b border-border' : ''}`}>
+                            <div className="p-6 flex items-start gap-4 cursor-pointer" onClick={() => setExpandedVisitId(isExpanded ? null : visit.id)}>
+                              <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center border border-border shrink-0 mt-1">
+                                <FileText size={16} className="text-muted-foreground" />
                               </div>
-                              <span className="text-xs font-bold bg-muted px-2.5 py-1 rounded-md text-foreground border border-border">
-                                {new Date(visit.date).toLocaleDateString()}
-                              </span>
+                              <div className="flex-1">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <h4 className="font-bold text-base">{visit.reason}</h4>
+                                    <p className="text-sm text-muted-foreground font-medium mt-0.5">Consulted {visit.doctor}</p>
+                                  </div>
+                                  <span className="text-xs font-bold bg-muted px-2.5 py-1 rounded-md text-foreground border border-border">
+                                    {new Date(visit.date).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="mt-3 flex gap-2">
-                              <button className="text-xs font-semibold px-3 py-1.5 rounded bg-secondary text-secondary-foreground border border-border hover:bg-muted transition-colors cursor-pointer">
-                                View Prescription
-                              </button>
-                            </div>
+                            
+                            {/* Expanded Content */}
+                            {isExpanded && (
+                              <div className="px-6 pb-6 pt-2 border-t border-border/50 bg-muted/10">
+                                {visit.modernEMR && (visit.modernEMR.bp || visit.modernEMR.pulse || visit.modernEMR.temp) && (
+                                  <div className="mb-4 flex gap-4 text-sm bg-background p-3 rounded-lg border border-border">
+                                    {visit.modernEMR.bp && <span className="font-medium"><strong className="text-muted-foreground mr-1">BP:</strong> {visit.modernEMR.bp}</span>}
+                                    {visit.modernEMR.pulse && <span className="font-medium"><strong className="text-muted-foreground mr-1">Pulse:</strong> {visit.modernEMR.pulse}</span>}
+                                    {visit.modernEMR.temp && <span className="font-medium"><strong className="text-muted-foreground mr-1">Temp:</strong> {visit.modernEMR.temp}</span>}
+                                  </div>
+                                )}
+                                
+                                {visit.ayurvedicEMR && (visit.ayurvedicEMR.prakruti || visit.ayurvedicEMR.vikruti) && (
+                                  <div className="mb-4 flex gap-4 text-sm bg-background p-3 rounded-lg border border-border">
+                                    {visit.ayurvedicEMR.prakruti && <span className="font-medium"><strong className="text-muted-foreground mr-1">Prakruti:</strong> {visit.ayurvedicEMR.prakruti}</span>}
+                                    {visit.ayurvedicEMR.vikruti && <span className="font-medium"><strong className="text-muted-foreground mr-1">Vikruti:</strong> {visit.ayurvedicEMR.vikruti}</span>}
+                                  </div>
+                                )}
+
+                                {visit.diagnosis?.ayurvedicDiagnosis && (
+                                  <div className="mb-4">
+                                    <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Diagnosis</h5>
+                                    <p className="text-sm font-medium text-foreground">{visit.diagnosis.ayurvedicDiagnosis}</p>
+                                  </div>
+                                )}
+                                
+                                {visit.prescription ? (
+                                    <div className="border border-border rounded-xl bg-card overflow-hidden shadow-sm">
+                                      <div className="bg-primary/5 px-4 py-3 border-b border-border font-bold text-primary flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <Pill size={14} /> Issued Prescription
+                                        </div>
+                                        <Link href={`/dashboard/patients/${patient.id}/prescribe`}>
+                                          <button className="text-xs font-bold px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:shadow-md transition-all cursor-pointer">
+                                            Edit / Print
+                                          </button>
+                                        </Link>
+                                      </div>
+                                      <div className="p-4">
+                                      {visit.prescription.items?.length > 0 && (
+                                        <table className="w-full text-left text-sm whitespace-nowrap mb-4">
+                                          <thead className="text-xs text-muted-foreground uppercase">
+                                            <tr>
+                                              <th className="pb-2 font-semibold">Medicine</th>
+                                              <th className="pb-2 font-semibold">Dosage</th>
+                                              <th className="pb-2 font-semibold">Duration</th>
+                                              <th className="pb-2 font-semibold">Anupana</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-border">
+                                            {visit.prescription.items.map((item: any) => (
+                                              <tr key={item.id}>
+                                                <td className="py-2 font-semibold">{item.inventory?.name || item.customMedicineName}</td>
+                                                <td className="py-2">{item.dosage}</td>
+                                                <td className="py-2">{item.duration}</td>
+                                                <td className="py-2 text-muted-foreground">{item.anupana}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      )}
+                                      
+                                      {(visit.prescription.pathya || visit.prescription.apathya) && (
+                                        <div className="grid grid-cols-2 gap-4 mt-4 text-sm border-t border-border pt-4">
+                                          {visit.prescription.pathya && (
+                                            <div>
+                                              <strong className="text-emerald-600 block mb-1 uppercase text-[10px] tracking-wider">Pathya</strong>
+                                              <p className="font-medium text-muted-foreground">{visit.prescription.pathya}</p>
+                                            </div>
+                                          )}
+                                          {visit.prescription.apathya && (
+                                            <div>
+                                              <strong className="text-red-600 block mb-1 uppercase text-[10px] tracking-wider">Apathya</strong>
+                                              <p className="font-medium text-muted-foreground">{visit.prescription.apathya}</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-sm font-medium text-muted-foreground italic mt-4 bg-muted/50 px-4 py-2 rounded-lg inline-block">
+                                    No prescription issued during this visit.
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
+                    
+                    {/* Pagination Controls */}
+                    {historyMeta.totalPages > 1 && (
+                      <div className="flex gap-2 justify-end mb-8">
+                        <button 
+                          disabled={historyPage === 1}
+                          onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                          className="px-3 py-1.5 rounded border border-border bg-card text-sm font-semibold disabled:opacity-50 hover:bg-muted transition-colors cursor-pointer"
+                        >
+                          Prev
+                        </button>
+                        <div className="px-3 py-1.5 text-sm font-bold border border-border rounded bg-muted">
+                          {historyPage} / {historyMeta.totalPages}
+                        </div>
+                        <button 
+                          disabled={historyPage === historyMeta.totalPages}
+                          onClick={() => setHistoryPage(p => Math.min(historyMeta.totalPages, p + 1))}
+                          className="px-3 py-1.5 rounded border border-border bg-card text-sm font-semibold disabled:opacity-50 hover:bg-muted transition-colors cursor-pointer"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}

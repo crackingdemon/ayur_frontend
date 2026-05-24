@@ -1,92 +1,326 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Package, Search, Plus, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Package, Search, Plus, AlertCircle, Loader2, ArrowUpDown, Filter, X, Save } from "lucide-react";
+import { useInventoryList } from "@/hooks/useInventoryList";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function InventoryPage() {
-  const inventory = [
-    { name: "Ashwagandha Churna", stock: 145, price: "₹250", status: "In Stock" },
-    { name: "Triphala Guggulu", stock: 8, price: "₹180", status: "Low Stock" },
-    { name: "Chyawanprash Awaleha", stock: 42, price: "₹450", status: "In Stock" },
-    { name: "Brahmi Vati", stock: 0, price: "₹120", status: "Out of Stock" },
-  ];
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [filterStatus, setFilterStatus] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  const { inventory, meta, isLoading, mutate } = useInventoryList(page, 15, debouncedSearch, filterStatus);
+
+  const toggleLowStockFilter = () => {
+    if (filterStatus === "low_stock") {
+      setFilterStatus("");
+    } else {
+      setFilterStatus("low_stock");
+      setPage(1);
+    }
+  };
+
+  const getStatusBadge = (stockCount: number) => {
+    if (stockCount === 0) {
+      return <span className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-fit bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"><AlertCircle size={12} /> Out of Stock</span>;
+    }
+    if (stockCount < 20) {
+      return <span className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-fit bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"><AlertCircle size={12} /> Low Stock</span>;
+    }
+    return <span className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-fit bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">In Stock</span>;
+  };
 
   return (
-    <div className="space-y-8 mt-4 text-foreground">
+    <div className="space-y-8 mt-2 text-foreground relative h-[calc(100vh-6rem)] flex flex-col">
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0"
       >
         <div>
-          <h1 className="text-3xl font-bold mb-2 tracking-tight">Pharmacy Inventory</h1>
-          <p className="text-muted-foreground text-lg">Manage medicines and track stock levels.</p>
+          <h1 className="text-3xl font-bold mb-1 tracking-tight flex items-center gap-3">
+            <Package className="text-primary" size={28} /> Pharmacy Inventory
+          </h1>
+          <p className="text-muted-foreground text-sm font-medium mt-1">Manage medicines, pricing, and track stock levels globally.</p>
         </div>
-        <button className="bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-semibold shadow-sm hover:shadow-md transition-all flex items-center gap-2 cursor-pointer">
+        <button 
+          onClick={() => setIsAddModalOpen(true)}
+          className="bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2 cursor-pointer"
+        >
           <Plus size={18} /> Add Medicine
         </button>
+      </motion.div>
+
+      {/* Metrics Row */}
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4 shrink-0"
+      >
+        <div className="premium-card p-5 border-l-4 border-l-primary flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+            <Package size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Total Items</p>
+            <p className="text-2xl font-black">{meta.total}</p>
+          </div>
+        </div>
+        <div className="premium-card p-5 border-l-4 border-l-amber-500 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
+            <AlertCircle size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Low Stock Alerts</p>
+            <p className="text-2xl font-black">{inventory.filter((i: any) => i.stockCount > 0 && i.stockCount < 20).length}</p>
+          </div>
+        </div>
+        <div className="premium-card p-5 border-l-4 border-l-red-500 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center">
+            <AlertCircle size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Out of Stock</p>
+            <p className="text-2xl font-black">{inventory.filter((i: any) => i.stockCount === 0).length}</p>
+          </div>
+        </div>
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="premium-card p-6"
+        transition={{ delay: 0.2 }}
+        className="premium-card p-0 flex flex-col flex-1 min-h-0 overflow-hidden"
       >
-        <div className="relative mb-6">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
-            <Search size={18} />
+        <div className="p-6 border-b border-border flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="relative w-full sm:w-96">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+              <Search size={18} />
+            </div>
+            <input 
+              type="text" 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search medicines by name..."
+              className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm font-medium"
+            />
           </div>
-          <input 
-            type="text" 
-            placeholder="Search medicines by name..."
-            className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
-          />
+          <button 
+            onClick={toggleLowStockFilter}
+            className={`px-4 py-2 font-bold border rounded-lg transition-colors cursor-pointer text-sm flex items-center gap-2 ${
+              filterStatus === "low_stock" 
+                ? "bg-amber-500/20 border-amber-500/30 text-amber-700 dark:text-amber-400" 
+                : "bg-muted text-foreground border-border hover:bg-muted/80"
+            }`}
+          >
+            <Filter size={16} /> Low Stock Only
+          </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground text-sm">
-                <th className="pb-3 font-semibold pl-4">Medicine Name</th>
-                <th className="pb-3 font-semibold">Current Stock</th>
-                <th className="pb-3 font-semibold">Price (per unit)</th>
-                <th className="pb-3 font-semibold">Status</th>
-                <th className="pb-3 font-semibold text-right pr-4">Actions</th>
+        <div className="overflow-x-auto flex-1">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead className="sticky top-0 bg-muted/80 backdrop-blur-md z-10 border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
+              <tr>
+                <th className="px-6 py-4 font-bold flex items-center gap-1 cursor-pointer hover:text-foreground">Medicine Name <ArrowUpDown size={12} /></th>
+                <th className="px-6 py-4 font-bold">Type</th>
+                <th className="px-6 py-4 font-bold">Current Stock</th>
+                <th className="px-6 py-4 font-bold">Price</th>
+                <th className="px-6 py-4 font-bold">Status</th>
+                <th className="px-6 py-4 font-bold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {inventory.map((item, i) => (
-                <tr key={i} className="border-b border-border hover:bg-muted/50 transition-colors group">
-                  <td className="py-4 pl-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-muted border border-border text-foreground flex items-center justify-center">
-                        <Package size={16} />
-                      </div>
-                      <span className="font-semibold text-sm">{item.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 font-medium text-sm">{item.stock} Units</td>
-                  <td className="py-4 font-medium text-sm">{item.price}</td>
-                  <td className="py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-fit ${
-                      item.status === 'In Stock' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
-                      item.status === 'Low Stock' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
-                      'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
-                    }`}>
-                      {item.status !== 'In Stock' && <AlertCircle size={12} />}
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-4 text-right pr-4">
-                    <button className="text-primary font-semibold hover:underline text-sm cursor-pointer">Edit</button>
+            <tbody className="divide-y divide-border">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+                    <p className="text-muted-foreground font-medium">Loading Inventory...</p>
                   </td>
                 </tr>
-              ))}
+              ) : inventory.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center">
+                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Package className="text-muted-foreground" size={32} />
+                    </div>
+                    <p className="text-lg font-bold text-foreground mb-1">No medicines found</p>
+                    <p className="text-sm text-muted-foreground">Adjust your search or add a new medicine.</p>
+                  </td>
+                </tr>
+              ) : (
+                inventory.map((item: any) => (
+                  <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
+                          <Package size={14} />
+                        </div>
+                        <span className="font-bold text-foreground">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-semibold bg-secondary text-secondary-foreground px-2 py-1 rounded-md">{item.type}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`font-black text-lg ${item.stockCount < 20 ? "text-amber-500" : "text-foreground"}`}>
+                        {item.stockCount}
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-1 font-medium">{item.unit}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-foreground">₹{item.price.toFixed(2)}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {getStatusBadge(item.stockCount)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button className="text-primary font-bold hover:underline text-sm cursor-pointer px-3 py-1.5 rounded hover:bg-primary/10 transition-colors">
+                        Restock / Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <div className="border-t border-border p-4 flex items-center justify-between bg-muted/20 shrink-0">
+          <span className="text-sm text-muted-foreground font-medium">
+            Showing <span className="text-foreground font-bold">{inventory.length}</span> of <span className="text-foreground font-bold">{meta.total}</span> items
+          </span>
+          <div className="flex gap-2">
+            <button 
+              disabled={page === 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className="px-3 py-1.5 rounded border border-border bg-card text-sm font-semibold disabled:opacity-50 hover:bg-muted transition-colors cursor-pointer shadow-sm"
+            >
+              Previous
+            </button>
+            <div className="px-3 py-1.5 text-sm font-bold border border-border rounded bg-muted shadow-inner">
+              {page} / {meta.totalPages || 1}
+            </div>
+            <button 
+              disabled={page === meta.totalPages || meta.totalPages === 0}
+              onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+              className="px-3 py-1.5 rounded border border-border bg-card text-sm font-semibold disabled:opacity-50 hover:bg-muted transition-colors cursor-pointer shadow-sm"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </motion.div>
+
+      {/* Add Medicine Modal Component */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <AddMedicineModal onClose={() => setIsAddModalOpen(false)} onAdd={() => { mutate(); setIsAddModalOpen(false); }} />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function AddMedicineModal({ onClose, onAdd }: { onClose: () => void, onAdd: () => void }) {
+  const [formData, setFormData] = useState({ name: "", type: "Vati", stockCount: 0, unit: "pills", price: 0 });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await api.post("/inventory", formData);
+      toast.success("Medicine added to inventory successfully!");
+      onAdd();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to add medicine");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+      />
+      <motion.div 
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="fixed inset-y-0 right-0 w-full md:w-[450px] bg-card border-l border-border shadow-2xl z-50 flex flex-col"
+      >
+        <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
+          <h2 className="text-xl font-bold tracking-tight">Add New Medicine</h2>
+          <button onClick={onClose} className="p-2 bg-background border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shadow-sm"><X size={20} /></button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6 flex-1 overflow-y-auto space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Medicine Name</label>
+            <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium" placeholder="e.g. Ashwagandha Churna" />
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Ayurvedic Type</label>
+            <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium">
+              <option value="Vati">Vati (Tablets)</option>
+              <option value="Churna">Churna (Powder)</option>
+              <option value="Asava/Arishta">Asava / Arishta (Liquid)</option>
+              <option value="Ghrita">Ghrita (Ghee)</option>
+              <option value="Taila">Taila (Oil)</option>
+              <option value="Bhasma">Bhasma</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Initial Stock</label>
+              <input required type="number" min="0" value={formData.stockCount} onChange={e => setFormData({...formData, stockCount: parseInt(e.target.value) || 0})} className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Unit</label>
+              <input required type="text" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium" placeholder="pills, grams, ml" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Price (per unit)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-3.5 text-muted-foreground font-bold font-mono">₹</span>
+              <input required type="number" step="0.01" min="0" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})} className="w-full pl-8 pr-3 py-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-bold" />
+            </div>
+          </div>
+        </form>
+
+        <div className="p-6 border-t border-border bg-muted/30">
+          <button disabled={isSubmitting} onClick={handleSubmit} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+            {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Save Medicine
+          </button>
+        </div>
+      </motion.div>
+    </>
   );
 }

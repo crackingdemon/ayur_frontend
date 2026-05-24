@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePatients } from "@/hooks/usePatients";
 
 export default function PatientsDirectory() {
-  const { patients, isLoading, error } = usePatients();
+  const { patients, isLoading, isError: error } = usePatients();
 
   if (isLoading) {
     return (

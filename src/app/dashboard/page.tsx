@@ -1,13 +1,19 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Users, IndianRupee, TrendingUp, Calendar as CalendarIcon, Clock, ArrowUpRight, ArrowDownRight, MoreHorizontal } from "lucide-react";
+import { Users, IndianRupee, TrendingUp, Calendar as CalendarIcon, Clock, ArrowUpRight, ArrowDownRight, MoreHorizontal, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useAppointmentsToday } from "@/hooks/useAppointments";
+import { useDashboardStats } from "@/hooks/useDashboard";
+import { format } from "date-fns";
 
 export default function DashboardOverview() {
+  const { stats: realStats, isLoading: isStatsLoading } = useDashboardStats();
+  
   const stats = [
     { 
       title: "Today's Appointments", 
-      value: "24", 
+      value: realStats?.appointmentsToday?.toString() || "0", 
       icon: CalendarIcon, 
       trend: "+12%", 
       isPositive: true,
@@ -16,7 +22,7 @@ export default function DashboardOverview() {
     },
     { 
       title: "Total Patients", 
-      value: "1,204", 
+      value: realStats?.totalPatients?.toLocaleString() || "0", 
       icon: Users, 
       trend: "+4%", 
       isPositive: true,
@@ -25,7 +31,7 @@ export default function DashboardOverview() {
     },
     { 
       title: "Revenue (Today)", 
-      value: "₹12,450", 
+      value: `₹${realStats?.revenueToday?.toLocaleString() || "0"}`, 
       icon: IndianRupee, 
       trend: "+23%", 
       isPositive: true,
@@ -34,7 +40,7 @@ export default function DashboardOverview() {
     },
     { 
       title: "Prescriptions", 
-      value: "18", 
+      value: realStats?.totalPrescriptions?.toLocaleString() || "0", 
       icon: TrendingUp, 
       trend: "-2%", 
       isPositive: false,
@@ -42,6 +48,9 @@ export default function DashboardOverview() {
       chartData: [80, 70, 60, 50, 40, 30, 25]
     },
   ];
+
+  const { appointments, isLoading } = useAppointmentsToday();
+  const waitingRoomApps = appointments.filter((a: any) => a.status === 'Waiting' || a.status === 'In Consultation');
 
   return (
     <div className="space-y-8 mt-2 text-foreground">
@@ -58,9 +67,11 @@ export default function DashboardOverview() {
           <button className="px-4 py-2 rounded-lg border border-border bg-card text-sm font-semibold hover:bg-muted transition-colors cursor-pointer shadow-sm">
             Export Report
           </button>
-          <button className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:shadow-md transition-all cursor-pointer">
-            + New Booking
-          </button>
+          <Link href="/dashboard/appointments/new">
+            <button className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:shadow-md transition-all cursor-pointer">
+              + New Booking
+            </button>
+          </Link>
         </div>
       </motion.div>
 
@@ -88,7 +99,9 @@ export default function DashboardOverview() {
               
               <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wider mb-1">{stat.title}</p>
               <div className="flex items-end gap-3 mb-4">
-                <h3 className="text-3xl font-bold tracking-tight leading-none">{stat.value}</h3>
+                <h3 className="text-3xl font-bold tracking-tight leading-none">
+                  {isStatsLoading ? <Loader2 size={24} className="animate-spin text-muted-foreground mt-2" /> : stat.value}
+                </h3>
               </div>
               
               <div className="flex flex-col gap-2">
@@ -131,35 +144,37 @@ export default function DashboardOverview() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
+              {isLoading && <Loader2 size={14} className="animate-spin text-muted-foreground ml-2" />}
             </div>
-            <button className="text-sm text-primary font-semibold hover:underline cursor-pointer">View All</button>
+            <Link href="/dashboard/appointments">
+              <button className="text-sm text-primary font-semibold hover:underline cursor-pointer">View Board</button>
+            </Link>
           </div>
-          <div className="p-2 flex-1">
-            {[
-              { name: "Rahul Verma", time: "10:00 AM", status: "In Progress", type: "Follow up", avatar: "RV" },
-              { name: "Priya Singh", time: "10:30 AM", status: "Waiting", type: "Consultation", avatar: "PS" },
-              { name: "Amit Kumar", time: "11:00 AM", status: "Waiting", type: "Walk-in", avatar: "AK" },
-            ].map((patient, i) => (
-              <div key={i} className="flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors cursor-pointer group">
+          <div className="p-2 flex-1 overflow-y-auto max-h-[300px]">
+            {waitingRoomApps.length === 0 && !isLoading && (
+              <div className="p-6 text-center text-muted-foreground text-sm font-medium">No patients currently waiting.</div>
+            )}
+            {waitingRoomApps.map((patient: any) => (
+              <div key={patient.id} className="flex items-center justify-between p-4 rounded-xl hover:bg-muted/50 transition-colors cursor-pointer group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                    {patient.avatar}
+                    {patient.patient?.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm">{patient.name}</p>
-                    <p className="text-xs text-muted-foreground font-medium">{patient.type}</p>
+                    <p className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm">{patient.patient?.name || 'Unknown'}</p>
+                    <p className="text-xs text-muted-foreground font-medium">{patient.reason}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="text-right hidden sm:block">
                     <div className="flex items-center gap-1.5 justify-end mb-0.5 text-muted-foreground">
                       <Clock size={12} />
-                      <p className="font-medium text-xs text-foreground">{patient.time}</p>
+                      <p className="font-medium text-xs text-foreground">{format(new Date(patient.date), 'hh:mm a')}</p>
                     </div>
                   </div>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold min-w-[90px] text-center border ${
-                    patient.status === 'In Progress' 
-                      ? 'bg-accent/10 text-accent border-accent/20' 
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold min-w-[120px] text-center border ${
+                    patient.status === 'In Consultation' 
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' 
                       : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                   }`}>
                     {patient.status}
@@ -181,15 +196,15 @@ export default function DashboardOverview() {
             <h2 className="text-lg font-bold tracking-tight">Quick Actions</h2>
           </div>
           <div className="p-6 flex flex-col gap-3">
-            <button className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold shadow-sm hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
+            <Link href="/dashboard/appointments/new" className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold shadow-sm hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer flex items-center justify-center gap-2 text-sm">
               <CalendarIcon size={16} /> New Appointment
-            </button>
-            <button className="w-full bg-card border border-border py-3 rounded-xl font-semibold hover:bg-muted hover:border-muted-foreground/30 transition-all cursor-pointer text-foreground text-sm flex items-center justify-center gap-2">
+            </Link>
+            <Link href="/dashboard/patients/new" className="w-full bg-card border border-border py-3 rounded-xl font-semibold hover:bg-muted hover:border-muted-foreground/30 transition-all cursor-pointer text-foreground text-sm flex items-center justify-center gap-2">
               <Users size={16} /> Add Patient
-            </button>
-            <button className="w-full bg-card border border-border py-3 rounded-xl font-semibold hover:bg-muted hover:border-muted-foreground/30 transition-all cursor-pointer text-foreground text-sm flex items-center justify-center gap-2">
+            </Link>
+            <Link href="/dashboard/patients" className="w-full bg-card border border-border py-3 rounded-xl font-semibold hover:bg-muted hover:border-muted-foreground/30 transition-all cursor-pointer text-foreground text-sm flex items-center justify-center gap-2">
               <TrendingUp size={16} /> Write Prescription
-            </button>
+            </Link>
           </div>
         </motion.div>
       </div>

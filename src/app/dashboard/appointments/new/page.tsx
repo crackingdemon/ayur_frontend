@@ -1,37 +1,94 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, User, Search, Phone, Calendar as CalendarIcon, Clock, AlignLeft, CheckCircle } from "lucide-react";
+import { ArrowLeft, User, Search, Phone, Calendar as CalendarIcon, Clock, AlignLeft, CheckCircle, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { usePatients, PatientSummary } from "@/hooks/usePatients";
 
 export default function NewAppointment() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   
+  // Search State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { patients, isLoading: isSearching } = usePatients(debouncedSearch);
+  const [selectedPatient, setSelectedPatient] = useState<PatientSummary | null>(null);
+
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
   // Form State
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  
   const [isNewPatient, setIsNewPatient] = useState(false);
   const [formData, setFormData] = useState({
     patientId: "",
     name: "",
+    age: "",
+    gender: "Male",
     phone: "",
-    date: new Date().toISOString().split('T')[0],
-    time: "10:00",
+    date: `${year}-${month}-${day}`,
+    time: `${hours}:${minutes}`,
     duration: 30,
     reason: "",
     source: "call"
   });
 
-  const handleBook = (e: React.FormEvent) => {
+  const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isNewPatient && (!formData.name || !formData.phone || !formData.age)) {
+      toast.error("Please fill all required new patient details");
+      return;
+    }
+
+    if (!isNewPatient && !formData.patientId) {
+      toast.error("Please search and select an existing patient");
+      return;
+    }
+    
     setIsSubmitting(true);
-    // Simulate booking
-    setTimeout(() => {
-      setIsSubmitting(false);
+    
+    try {
+      const payload = {
+        isNewPatient,
+        patientId: isNewPatient ? undefined : formData.patientId,
+        name: formData.name,
+        age: parseInt(formData.age as string) || undefined,
+        gender: formData.gender,
+        phone: formData.phone,
+        date: formData.date,
+        time: formData.time,
+        duration: formData.duration,
+        reason: formData.reason,
+        source: formData.source
+      };
+
+      console.log("SENDING PAYLOAD:", payload);
+
+      await api.post('/appointments', payload);
+      toast.success("Appointment booked successfully!");
       router.push('/dashboard/appointments');
-    }, 1000);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to book appointment");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -81,29 +138,92 @@ export default function NewAppointment() {
             </div>
 
             {!isNewPatient ? (
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
-                  <Search size={18} />
-                </div>
-                <input 
-                  type="text" 
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-                  placeholder="Search by name, phone, or ID..."
-                  className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
-                />
-                {searchFocused && (
-                  <div className="absolute top-full left-0 w-full mt-2 bg-card border border-border rounded-xl shadow-lg p-2 z-20 max-h-60 overflow-y-auto">
-                    <div className="p-3 hover:bg-muted rounded-lg cursor-pointer flex justify-between items-center transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center font-bold text-xs">RV</div>
-                        <div>
-                          <p className="font-bold text-sm">Rahul Verma</p>
-                          <p className="text-xs text-muted-foreground">+91 98765 43210</p>
+              <div className="space-y-4">
+                {selectedPatient ? (
+                  <div className="relative overflow-hidden premium-card p-5 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center font-bold text-lg text-primary shadow-inner">
+                        {selectedPatient.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-bold text-lg">{selectedPatient.name}</p>
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+                          <span className="flex items-center gap-1"><Phone size={14} /> {selectedPatient.phone}</span>
+                          <span className="w-1 h-1 rounded-full bg-border"></span>
+                          <span>{selectedPatient.age} yrs, {selectedPatient.gender}</span>
                         </div>
                       </div>
-                      <span className="text-xs bg-muted px-2 py-1 rounded font-semibold border border-border">PT-0001</span>
                     </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setSelectedPatient(null);
+                        setFormData({ ...formData, patientId: "" });
+                      }}
+                      className="p-2 bg-background border border-border text-muted-foreground hover:text-red-500 hover:border-red-200 rounded-lg transition-colors shadow-sm"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+                      {isSearching ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                    </div>
+                    <input 
+                      type="text" 
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onFocus={() => setSearchFocused(true)}
+                      onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+                      placeholder="Search by name, phone..."
+                      className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
+                    />
+                    {searchFocused && (
+                      <div className="absolute top-full left-0 w-full mt-2 bg-card border border-border rounded-xl shadow-lg p-2 z-20 max-h-60 overflow-y-auto">
+                        {patients.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            {isSearching ? "Searching..." : "No patients found. Try a different search term or add a new patient."}
+                          </div>
+                        ) : (
+                          patients.map((patient) => (
+                            <div 
+                              key={patient.id}
+                              className="p-3 hover:bg-muted rounded-lg cursor-pointer flex justify-between items-center transition-colors mb-1 border border-transparent hover:border-border"
+                              onMouseDown={() => {
+                                // Prevent onBlur from firing before click
+                                setSelectedPatient(patient);
+                                setFormData({
+                                  ...formData, 
+                                  patientId: patient.id, 
+                                  name: patient.name, 
+                                  phone: patient.phone, 
+                                  age: patient.age.toString(), 
+                                  gender: patient.gender
+                                });
+                                setSearchFocused(false);
+                                setSearchTerm("");
+                              }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center font-bold text-xs">
+                                  {patient.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-sm">{patient.name}</p>
+                                  <p className="text-xs text-muted-foreground">{patient.phone}</p>
+                                </div>
+                              </div>
+                              {patient.visits?.length > 0 && (
+                                <span className="text-[10px] bg-muted px-2 py-1 rounded font-semibold border border-border">
+                                  Last visit: {new Date(patient.visits[0].date).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -136,6 +256,26 @@ export default function NewAppointment() {
                       placeholder="+91 98765 43210"
                     />
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold">Age</label>
+                  <input 
+                    type="number" required min="1"
+                    value={formData.age} onChange={(e) => setFormData({...formData, age: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+                    placeholder="e.g. 34"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold">Gender</label>
+                  <select 
+                    value={formData.gender} onChange={(e) => setFormData({...formData, gender: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-medium outline-none appearance-none"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
               </div>
             )}

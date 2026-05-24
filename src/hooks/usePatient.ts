@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import useSWR from 'swr';
 import { api } from '../lib/api';
 
 export interface PatientProfileData {
@@ -9,6 +10,10 @@ export interface PatientProfileData {
   phone: string;
   bloodGroup: string | null;
   allergies: string | null;
+  pastHistory: string | null;
+  drugHistory: string | null;
+  personalHistory: string | null;
+  familyHistory: string | null;
   visits: Array<{
     id: string;
     date: string;
@@ -44,10 +49,10 @@ export function usePatient(patientId: string) {
     fetchPatient();
   }, [patientId]);
 
-  const updateModernEMR = async (data: any) => {
-    if (!patientId) return;
+  const updateModernEMR = async (visitId: string, data: any) => {
+    if (!patientId || !visitId) return;
     try {
-      await api.put(`/patients/${patientId}/modern-emr`, data);
+      await api.put(`/patients/${patientId}/visits/${visitId}/modern-emr`, data);
       await fetchPatient(); // Refresh data
     } catch (err) {
       console.error('Failed to update Modern EMR', err);
@@ -55,10 +60,10 @@ export function usePatient(patientId: string) {
     }
   };
 
-  const updateAyurvedicEMR = async (data: any) => {
-    if (!patientId) return;
+  const updateAyurvedicEMR = async (visitId: string, data: any) => {
+    if (!patientId || !visitId) return;
     try {
-      await api.put(`/patients/${patientId}/ayurvedic-emr`, data);
+      await api.put(`/patients/${patientId}/visits/${visitId}/ayurvedic-emr`, data);
       await fetchPatient(); // Refresh data
     } catch (err) {
       console.error('Failed to update Ayurvedic EMR', err);
@@ -66,13 +71,24 @@ export function usePatient(patientId: string) {
     }
   };
 
-  const updateDiagnosis = async (data: any) => {
-    if (!patientId) return;
+  const updateDiagnosis = async (visitId: string, data: any) => {
+    if (!patientId || !visitId) return;
     try {
-      await api.put(`/patients/${patientId}/diagnosis`, data);
+      await api.put(`/patients/${patientId}/visits/${visitId}/diagnosis`, data);
       await fetchPatient(); // Refresh data
     } catch (err) {
       console.error('Failed to update Diagnosis', err);
+      throw err;
+    }
+  };
+
+  const updatePatientInfo = async (data: any) => {
+    if (!patientId) return;
+    try {
+      await api.put(`/patients/${patientId}`, data);
+      await fetchPatient(); // Refresh data
+    } catch (err) {
+      console.error('Failed to update Patient Info', err);
       throw err;
     }
   };
@@ -84,6 +100,21 @@ export function usePatient(patientId: string) {
     refetch: fetchPatient,
     updateModernEMR,
     updateAyurvedicEMR,
-    updateDiagnosis
+    updateDiagnosis,
+    updatePatientInfo
+  };
+}
+
+export function usePatientHistory(patientId: string, page: number = 1, limit: number = 5) {
+  const { data, error, isLoading } = useSWR(
+    patientId ? `/patients/${patientId}/history?page=${page}&limit=${limit}` : null,
+    (url) => api.get(url).then(res => res.data)
+  );
+
+  return {
+    history: data?.data || [],
+    meta: data?.meta || { total: 0, page: 1, limit: 5, totalPages: 0 },
+    isLoading,
+    isError: error
   };
 }

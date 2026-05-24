@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import useSWR from 'swr';
 import { api } from '../lib/api';
 
 export interface PatientSummary {
@@ -13,32 +13,17 @@ export interface PatientSummary {
   }>;
 }
 
-export function usePatients() {
-  const [patients, setPatients] = useState<PatientSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchPatients = async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.get('/patients');
-      setPatients(response.data);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch patients');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+export function usePatients(search?: string) {
+  const query = search ? `?search=${encodeURIComponent(search)}` : '';
+  const { data, error, isLoading, mutate } = useSWR(`/patients${query}`, async (url) => {
+    const response = await api.get(url);
+    return response.data as PatientSummary[];
+  });
 
   return {
-    patients,
+    patients: data || [],
     isLoading,
-    error,
-    refetch: fetchPatients
+    isError: error,
+    mutate
   };
 }

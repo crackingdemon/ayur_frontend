@@ -2,17 +2,36 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Lock, Mail } from 'lucide-react';
+import { ArrowRight, Lock, Mail, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { login } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push('/dashboard');
+    setIsLoading(true);
+
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { token, user, organization } = response.data;
+      
+      login(token, user, organization);
+      toast.success(`Welcome back to ${organization.name}!`);
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -76,11 +95,19 @@ export default function LoginPage() {
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             type="submit"
-            className="w-full bg-primary text-primary-foreground py-2.5 mt-2 rounded-lg font-medium flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer"
+            disabled={isLoading}
+            className="w-full bg-primary text-primary-foreground py-2.5 mt-2 rounded-lg font-medium flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Sign In <ArrowRight size={16} />
+            {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : <>Sign In <ArrowRight size={16} /></>}
           </motion.button>
         </form>
+
+        <p className="text-center text-sm font-medium text-muted-foreground mt-8">
+            Don't have a workspace yet?{" "}
+            <Link href="/signup" className="text-primary hover:underline font-bold">
+              Create an organization
+            </Link>
+          </p>
       </motion.div>
     </div>
   );
