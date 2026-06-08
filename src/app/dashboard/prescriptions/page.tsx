@@ -15,7 +15,7 @@ export default function PrescriptionsDirectory() {
   const [selectedPrescription, setSelectedPrescription] = useState<any | null>(null);
   const [isDispensing, setIsDispensing] = useState(false);
   const [isDispenseModalOpen, setIsDispenseModalOpen] = useState(false);
-  const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
+  const [itemsBilling, setItemsBilling] = useState<Record<string, { unitPrice: number, discount: number, discountType: 'flat' | 'percent', quantity: number, total: number }>>({});
 
   // Debounce search
   useEffect(() => {
@@ -30,13 +30,20 @@ export default function PrescriptionsDirectory() {
 
   const handleDispenseClick = () => {
     if (!selectedPrescription) return;
-    const initialPrices: Record<string, number> = {};
+    const initialBilling: Record<string, { unitPrice: number, discount: number, discountType: 'flat' | 'percent', quantity: number, total: number }> = {};
     selectedPrescription.items?.forEach((item: any) => {
-      if (!item.inventoryId || !item.inventory) {
-        initialPrices[item.id] = 0; // Default price for custom items is 0
-      }
+      const isInventory = item.inventoryId && item.inventory;
+      const unitPrice = isInventory ? item.inventory.price : 0;
+      const quantity = item.quantity || 0;
+      initialBilling[item.id] = {
+        unitPrice,
+        discount: 0,
+        discountType: 'flat',
+        quantity,
+        total: unitPrice * quantity
+      };
     });
-    setCustomPrices(initialPrices);
+    setItemsBilling(initialBilling);
     setIsDispenseModalOpen(true);
   };
 
@@ -44,8 +51,25 @@ export default function PrescriptionsDirectory() {
     if (!selectedPrescription) return;
     setIsDispensing(true);
     try {
+      // Resolve percentage discounts to absolute monetary amounts before sending
+      const resolvedBilling: Record<string, any> = {};
+      Object.keys(itemsBilling).forEach(id => {
+        const item = itemsBilling[id];
+        const subTotal = item.unitPrice * item.quantity;
+        const discountAmount = item.discountType === 'percent' 
+          ? (subTotal * (item.discount / 100)) 
+          : item.discount;
+          
+        resolvedBilling[id] = {
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+          discount: discountAmount,
+          total: item.total
+        };
+      });
+
       await api.post(`/prescriptions/${selectedPrescription.id}/dispense`, {
-        customPrices
+        itemsBilling: resolvedBilling
       });
       toast.success("Prescription dispensed and billed successfully!");
       mutate();
@@ -420,60 +444,80 @@ export default function PrescriptionsDirectory() {
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="p-6 overflow-y-auto max-h-[60vh] styled-scrollbar">
                 <table className="w-full text-sm text-left">
                   <thead className="text-xs text-muted-foreground uppercase bg-muted/50">
                     <tr>
                       <th className="px-4 py-3 rounded-tl-lg">Medicine</th>
                       <th className="px-4 py-3">Qty</th>
-                      <th className="px-4 py-3 text-right">Unit Price</th>
-                      <th className="px-4 py-3 text-right rounded-tr-lg">Total</th>
+                      <th className="px-4 py-3">Unit Price (₹)</th>
+                      <th className="px-4 py-3">Discount</th>
+                      <th className="px-4 py-3 text-right rounded-tr-lg">Total (₹)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {selectedPrescription.items?.map((item: any, idx: number) => {
+                    {selectedPrescription.items?.map((item: any) => {
                       const isInventory = item.inventoryId && item.inventory;
                       const name = isInventory ? item.inventory.name : item.customMedicineName;
-                      const qty = item.quantity || 0;
-                      const unitPrice = isInventory ? item.inventory.price : 0;
+                      const billing = itemsBilling[item.id] || { unitPrice: 0, discount: 0, discountType: 'flat', quantity: 0, total: 0 };
                       
-                      // For custom items, total is whatever user entered, otherwise qty * unitPrice
-                      const itemTotal = isInventory 
-                        ? (qty * unitPrice) 
-                        : (customPrices[item.id] || 0);
+                      const updateBilling = (field: string, value: any) => {
+                        setItemsBilling(prev => {
+                          const current = { ...prev[item.id], [field]: value };
+                          // Recalculate total
+                          const subTotal = current.unitPrice * current.quantity;
+                          const discountAmount = current.discountType === 'percent' 
+                            ? (subTotal * (current.discount / 100)) 
+                            : current.discount;
+                          current.total = Math.max(0, subTotal - discountAmount);
+                          return { ...prev, [item.id]: current };
+                        });
+                      };
 
                       return (
                         <tr key={item.id} className="hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-4 font-medium flex items-center gap-2">
                             {name} {!isInventory && <span className="text-[10px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Custom</span>}
                           </td>
-                          <td className="px-4 py-4 font-bold">{qty}</td>
-                          <td className="px-4 py-4 text-right">
-                            {isInventory ? (
-                              <span className="text-muted-foreground">₹{unitPrice}</span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground italic">Manual input required</span>
-                            )}
+                          <td className="px-4 py-4">
+                            <input 
+                              type="number" 
+                              min="0"
+                              value={billing.quantity === 0 ? '' : billing.quantity}
+                              onChange={(e) => updateBilling('quantity', parseInt(e.target.value) || 0)}
+                              className="w-16 p-1.5 bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                            />
                           </td>
-                          <td className="px-4 py-4 text-right font-bold">
-                            {isInventory ? (
-                              <span>₹{itemTotal}</span>
-                            ) : (
-                              <div className="flex justify-end items-center gap-1">
-                                <span className="text-muted-foreground">₹</span>
-                                <input 
-                                  type="number" 
-                                  min="0"
-                                  value={customPrices[item.id] === 0 ? '' : customPrices[item.id]}
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value) || 0;
-                                    setCustomPrices(prev => ({ ...prev, [item.id]: val }));
-                                  }}
-                                  className="w-20 p-1.5 bg-background border border-primary/30 rounded focus:ring-2 focus:ring-primary/20 outline-none text-right font-bold text-primary"
-                                  placeholder="0"
-                                />
-                              </div>
-                            )}
+                          <td className="px-4 py-4">
+                            <input 
+                              type="number" 
+                              min="0"
+                              value={billing.unitPrice === 0 ? '' : billing.unitPrice}
+                              onChange={(e) => updateBilling('unitPrice', parseFloat(e.target.value) || 0)}
+                              className="w-20 p-1.5 bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 outline-none font-bold"
+                            />
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-1">
+                              <input 
+                                type="number" 
+                                min="0"
+                                value={billing.discount === 0 ? '' : billing.discount}
+                                onChange={(e) => updateBilling('discount', parseFloat(e.target.value) || 0)}
+                                className="w-16 p-1.5 bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 outline-none"
+                              />
+                              <select 
+                                value={billing.discountType}
+                                onChange={(e) => updateBilling('discountType', e.target.value)}
+                                className="p-1.5 bg-background border border-border rounded focus:ring-2 focus:ring-primary/20 outline-none text-xs"
+                              >
+                                <option value="flat">₹</option>
+                                <option value="percent">%</option>
+                              </select>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-right font-bold text-primary text-base">
+                            ₹{billing.total.toLocaleString()}
                           </td>
                         </tr>
                       );
@@ -486,11 +530,7 @@ export default function PrescriptionsDirectory() {
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Grand Total</span>
                   <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-500">
-                    ₹{selectedPrescription.items?.reduce((sum: number, item: any) => {
-                      const isInventory = item.inventoryId && item.inventory;
-                      if (isInventory) return sum + ((item.quantity || 0) * item.inventory.price);
-                      return sum + (customPrices[item.id] || 0);
-                    }, 0).toLocaleString()}
+                    ₹{Object.values(itemsBilling).reduce((sum, item) => sum + item.total, 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex gap-3 w-full sm:w-auto">

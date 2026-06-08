@@ -66,6 +66,8 @@ export default function NewAppointment() {
     setIsSubmitting(true);
     
     try {
+      const localDateTime = new Date(`${formData.date}T${formData.time}`);
+      
       const payload = {
         isNewPatient,
         patientId: isNewPatient ? undefined : formData.patientId,
@@ -73,7 +75,7 @@ export default function NewAppointment() {
         age: parseInt(formData.age as string) || undefined,
         gender: formData.gender,
         phone: formData.phone,
-        date: formData.date,
+        date: localDateTime.toISOString(), // Send as exact UTC representation of local time
         time: formData.time,
         duration: formData.duration,
         reason: formData.reason,
