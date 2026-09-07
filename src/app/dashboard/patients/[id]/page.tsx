@@ -6,7 +6,9 @@ import { ArrowLeft, User, Phone, Calendar, Activity, Pill, ChevronRight, FileTex
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { usePatient, usePatientHistory } from "@/hooks/usePatient";
+import { usePanchakarma } from "@/hooks/usePanchakarma";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 export default function PatientProfile() {
   const params = useParams();
@@ -16,6 +18,8 @@ export default function PatientProfile() {
   const [historyPage, setHistoryPage] = useState(1);
   const { history, meta: historyMeta, isLoading: isHistoryLoading } = usePatientHistory(params.id as string, historyPage, 5);
   const [expandedVisitId, setExpandedVisitId] = useState<string | null>(null);
+
+  const { treatments: pkTreatments, isLoading: isPkLoading } = usePanchakarma({ patientId: params.id as string });
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -121,6 +125,7 @@ export default function PatientProfile() {
     { id: "modern", label: "Modern EMR", icon: Activity },
     { id: "ayurvedic", label: "Ayurvedic EMR", icon: Leaf },
     { id: "diagnosis", label: "Diagnosis Plan", icon: Stethoscope },
+    { id: "panchakarma", label: "Panchakarma", icon: Activity },
   ];
 
   return (
@@ -551,6 +556,68 @@ export default function PatientProfile() {
                       </div>
                     </div>
                 </motion.form>
+              )}
+
+              {/* PANCHAKARMA TAB */}
+              {activeTab === "panchakarma" && (
+                <motion.div
+                  key="panchakarma"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6 max-w-4xl"
+                >
+                  <h2 className="text-2xl font-bold border-b border-border pb-2 mb-6 flex justify-between items-center">
+                    Panchakarma History
+                  </h2>
+                  
+                  {isPkLoading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div>
+                  ) : pkTreatments.length === 0 ? (
+                    <div className="text-center py-20 border border-dashed border-border rounded-2xl bg-card/50">
+                      <Activity className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
+                      <h3 className="text-lg font-semibold text-foreground">No Panchakarma Treatments</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Prescribe a treatment from the Prescribe flow.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {pkTreatments.map(treatment => {
+                        const completed = treatment.days.filter(d => d.status === 'Completed').length;
+                        return (
+                          <div key={treatment.id} className="p-6 border border-border rounded-2xl bg-card">
+                            <div className="flex justify-between items-start mb-4">
+                              <div>
+                                <h3 className="font-bold text-lg text-foreground">{treatment.name}</h3>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {treatment.startDate ? format(new Date(treatment.startDate), 'MMM d, yyyy') : 'No Date'} • {treatment.totalDays} Days
+                                </p>
+                              </div>
+                              <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                                treatment.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {treatment.status}
+                              </span>
+                            </div>
+                            
+                            <div className="mb-4">
+                              <div className="flex justify-between text-xs font-medium mb-1">
+                                <span className="text-muted-foreground">Progress</span>
+                                <span className="text-foreground">{completed}/{treatment.totalDays} Days Completed</span>
+                              </div>
+                              <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
+                                <div 
+                                  className="bg-primary h-full rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.round((completed / treatment.totalDays) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>

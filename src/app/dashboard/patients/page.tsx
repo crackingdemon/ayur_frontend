@@ -1,12 +1,17 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Search, Plus, User, FileText, ChevronRight, Loader2 } from "lucide-react";
+import { Search, Plus, User, FileText, ChevronRight, Loader2, Users } from "lucide-react";
 import Link from "next/link";
 import { usePatients } from "@/hooks/usePatients";
+import { useState } from "react";
+import { AddPatientModal } from "@/components/forms/AddPatientModal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
 
 export default function PatientsDirectory() {
   const { patients, isLoading, isError: error } = usePatients();
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -19,7 +24,7 @@ export default function PatientsDirectory() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-10rem)] text-red-500">
-        Error loading patients: {error}
+        Error loading patients. Please try again later.
       </div>
     );
   }
@@ -35,9 +40,9 @@ export default function PatientsDirectory() {
           <h1 className="text-3xl font-bold mb-1 tracking-tight">Patient Directory</h1>
           <p className="text-muted-foreground text-sm font-medium">Manage and view patient medical records.</p>
         </div>
-        <button className="bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-semibold shadow-sm hover:shadow-md transition-all flex items-center gap-2 cursor-pointer">
+        <Button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2">
           <Plus size={18} /> Add New Patient
-        </button>
+        </Button>
       </motion.div>
 
       <motion.div
@@ -62,61 +67,68 @@ export default function PatientsDirectory() {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground text-sm bg-muted/20">
-                <th className="py-3 font-semibold pl-4 rounded-tl-lg">Patient Name</th>
-                <th className="py-3 font-semibold">Contact</th>
-                <th className="py-3 font-semibold">Details</th>
-                <th className="py-3 font-semibold">Last Visit</th>
-                <th className="py-3 font-semibold text-right pr-4 rounded-tr-lg">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {patients.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-muted-foreground">No patients found.</td>
+        {patients.length === 0 ? (
+          <EmptyState 
+            icon={Users} 
+            title="No patients found" 
+            description="Your clinic currently has no registered patients. Add a new patient to get started."
+            action={<Button onClick={() => setIsAddModalOpen(true)}>Add First Patient</Button>}
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground text-sm bg-muted/20">
+                  <th className="py-3 font-semibold pl-4 rounded-tl-lg">Patient Name</th>
+                  <th className="py-3 font-semibold">Contact</th>
+                  <th className="py-3 font-semibold">Details</th>
+                  <th className="py-3 font-semibold">Last Visit</th>
+                  <th className="py-3 font-semibold text-right pr-4 rounded-tr-lg">Action</th>
                 </tr>
-              ) : patients.map((patient) => {
-                const latestVisit = patient.visits?.[0];
-                return (
-                  <tr key={patient.id} className="border-b border-border hover:bg-muted/30 transition-colors group">
-                    <td className="py-4 pl-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                          {patient.name.split(' ').map(n => n[0]).join('')}
+              </thead>
+              <tbody>
+                {patients.map((patient) => {
+                  const latestVisit = patient.visits?.[0];
+                  return (
+                    <tr key={patient.id} className="border-b border-border hover:bg-muted/30 transition-colors group">
+                      <td className="py-4 pl-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                            {patient.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-sm text-foreground block">{patient.name}</span>
+                            <span className="text-xs text-muted-foreground">ID: PT-{patient.id.substring(0, 4).toUpperCase()}</span>
+                          </div>
                         </div>
-                        <div>
-                          <span className="font-semibold text-sm text-foreground block">{patient.name}</span>
-                          <span className="text-xs text-muted-foreground">ID: PT-{patient.id.substring(0, 4).toUpperCase()}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4">
-                      <span className="text-sm font-medium">{patient.phone}</span>
-                    </td>
-                    <td className="py-4">
-                      <span className="text-xs text-muted-foreground">{patient.age} Yrs • {patient.gender}</span>
-                      <p className="text-sm font-medium mt-0.5">{latestVisit?.reason || 'No visits yet'}</p>
-                    </td>
-                    <td className="py-4">
-                      <span className="text-sm font-medium">{latestVisit ? new Date(latestVisit.date).toLocaleDateString() : 'N/A'}</span>
-                    </td>
-                    <td className="py-4 text-right pr-4">
-                      <Link href={`/dashboard/patients/${patient.id}`}>
-                        <button className="px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground rounded-md transition-colors inline-flex items-center gap-1 cursor-pointer border border-border hover:border-primary">
-                          View Profile <ChevronRight size={14} />
-                        </button>
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="py-4">
+                        <span className="text-sm font-medium">{patient.phone}</span>
+                      </td>
+                      <td className="py-4">
+                        <span className="text-xs text-muted-foreground">{patient.age} Yrs • {patient.gender}</span>
+                        <p className="text-sm font-medium mt-0.5">{latestVisit?.reason || 'No visits yet'}</p>
+                      </td>
+                      <td className="py-4">
+                        <span className="text-sm font-medium">{latestVisit ? new Date(latestVisit.date).toLocaleDateString() : 'N/A'}</span>
+                      </td>
+                      <td className="py-4 text-right pr-4">
+                        <Link href={`/dashboard/patients/${patient.id}`}>
+                          <button className="px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground rounded-md transition-colors inline-flex items-center gap-1 cursor-pointer border border-border hover:border-primary">
+                            View Profile <ChevronRight size={14} />
+                          </button>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </motion.div>
+
+      <AddPatientModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
     </div>
   );
 }

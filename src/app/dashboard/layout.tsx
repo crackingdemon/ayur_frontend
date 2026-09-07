@@ -1,17 +1,20 @@
 "use client";
 
 import { ReactNode, useEffect } from "react";
-import { Activity, Calendar, LayoutDashboard, Package, Settings, Users, LogOut, Loader2 } from "lucide-react";
+import { Activity, Calendar, LayoutDashboard, Package, Settings, Users, LogOut, Loader2, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFacilities } from "@/hooks/useFacilities";
 
 const sidebarLinks = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Appointments", href: "/dashboard/appointments", icon: Calendar },
   { name: "Patients", href: "/dashboard/patients", icon: Users },
+  { name: "Panchakarma", href: "/dashboard/panchakarma", icon: Activity },
   { name: "Prescriptions", href: "/dashboard/prescriptions", icon: Activity },
   { name: "Inventory", href: "/dashboard/inventory", icon: Package },
+  { name: "Billing", href: "/dashboard/billing", icon: CreditCard },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -19,6 +22,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, organization, logout, isAuthenticated, isLoading } = useAuth();
+  const { facilities, switchFacility } = useFacilities();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -42,11 +46,25 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <Link href="/">
             <h2 className="text-xl font-bold text-foreground cursor-pointer flex items-center gap-2">
               <div className="w-6 h-6 rounded bg-primary text-primary-foreground flex items-center justify-center text-xs">
-                {organization?.name.charAt(0).toUpperCase()}
+                {organization?.name?.charAt(0).toUpperCase()}
               </div>
               <span className="truncate">{organization?.name}</span>
             </h2>
           </Link>
+          {facilities.length > 0 && (
+            <div className="mt-2 text-xs">
+              <select 
+                value={typeof window !== 'undefined' ? (localStorage.getItem('vaidyaos_facility') || 'all') : 'all'} 
+                onChange={(e) => switchFacility(e.target.value)}
+                className="w-full bg-muted/50 border border-border rounded p-1 text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="all">Organization Wide (All Branches)</option>
+                {facilities.map((f: any) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto mt-4">
           {sidebarLinks.map((link) => {

@@ -14,6 +14,11 @@ api.interceptors.request.use((config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    const facilityId = localStorage.getItem('vaidyaos_facility');
+    if (facilityId) {
+      config.headers['x-facility-id'] = facilityId;
+    }
   }
   return config;
 });

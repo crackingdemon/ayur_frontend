@@ -1,11 +1,22 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useFacilities } from "@/hooks/useFacilities";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Building2, User, Mail, MapPin, ShieldCheck, CreditCard } from "lucide-react";
+import { TeamManagement } from "./TeamManagement";
 
 export default function SettingsPage() {
   const { user, organization } = useAuth();
+  const { facilities, createFacility, switchFacility, isLoading } = useFacilities();
+  const [activeFacilityId, setActiveFacilityId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setActiveFacilityId(localStorage.getItem('vaidyaos_facility'));
+    }
+  }, []);
 
   if (!user || !organization) {
     return null; // Layout handles loading state
@@ -90,6 +101,62 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+
+          <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm mt-6">
+            <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 border border-emerald-500/20">
+                  <Building2 size={28} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Clinics & Branches</h2>
+                  <p className="text-sm text-muted-foreground">Manage your multiple facilities</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  const name = prompt("Enter new clinic name (e.g. Ayurveda Panchakarma Center):");
+                  if (name) {
+                    createFacility({ name });
+                  }
+                }}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-sm"
+              >
+                + Add Branch
+              </button>
+            </div>
+            
+            <div className="p-0 divide-y divide-border">
+              {isLoading ? (
+                <div className="p-8 text-center text-muted-foreground">Loading branches...</div>
+              ) : facilities.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">No additional branches found.</div>
+              ) : (
+                facilities.map((fac: any) => (
+                  <div key={fac.id} className="p-4 sm:p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                    <div>
+                      <h4 className="font-bold text-lg">{fac.name}</h4>
+                      <p className="text-sm text-muted-foreground">{fac.type || 'Clinic'}</p>
+                    </div>
+                    {fac.id === activeFacilityId ? (
+                      <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold uppercase rounded-full">
+                        Active Context
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => switchFacility(fac.id)}
+                        className="px-4 py-2 border border-border hover:bg-muted rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Switch To Branch
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <TeamManagement />
         </motion.div>
 
         {/* Sidebar Cards */}

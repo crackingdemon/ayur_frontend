@@ -7,6 +7,7 @@ import Link from "next/link";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useAppointmentsToday, useAppointmentsPaginated } from "@/hooks/useAppointments";
 import { format } from "date-fns";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const KanbanColumn = ({ title, status, appointments }: { title: string, status: string, appointments: any[] }) => {
   const colApps = appointments.filter((a: any) => a.status === status);
@@ -56,6 +57,9 @@ const KanbanColumn = ({ title, status, appointments }: { title: string, status: 
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                         <User size={12} /> {app.type || 'Walk-in'}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-primary font-bold bg-primary/10 px-2 py-0.5 rounded">
+                        <User size={12} /> {app.doctor || 'Dr. Default'}
                       </div>
                     </div>
                     {app.status === 'In Consultation' && app.patientId && (
@@ -286,7 +290,7 @@ export default function AppointmentsHub() {
                 <th className="px-6 py-4 font-semibold">Date & Time</th>
                 <th className="px-6 py-4 font-semibold">Reason</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
-                <th className="px-6 py-4 font-semibold">Source</th>
+                <th className="px-6 py-4 font-semibold">Source & Provider</th>
                 <th className="px-6 py-4 font-semibold rounded-tr-xl text-right">Actions</th>
               </tr>
             </thead>
@@ -299,8 +303,13 @@ export default function AppointmentsHub() {
                 </tr>
               ) : paginatedApps.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                    No appointments found.
+                  <td colSpan={6} className="p-0">
+                    <EmptyState 
+                      icon={CalendarIcon} 
+                      title="No appointments found" 
+                      description="You don't have any appointments scheduled for this view. Create a new booking to get started."
+                      action={<Link href="/dashboard/appointments/new"><button className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold">New Booking</button></Link>}
+                    />
                   </td>
                 </tr>
               ) : (
@@ -325,7 +334,10 @@ export default function AppointmentsHub() {
                         {app.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground">{app.type || 'Walk-in'}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-foreground">{app.type || 'Walk-in'}</div>
+                      <div className="text-xs text-primary font-bold mt-0.5">{app.doctor || 'Dr. Default'}</div>
+                    </td>
                     <td className="px-6 py-4 text-right">
                       {app.status === 'In Consultation' && app.patientId ? (
                         <div className="flex items-center justify-end gap-3">

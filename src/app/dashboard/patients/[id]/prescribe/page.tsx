@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePatient } from "@/hooks/usePatient";
 import { usePrescription } from "@/hooks/usePrescription";
 import { useInventorySearch } from "@/hooks/useInventory";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function PrescribePage() {
@@ -20,16 +21,23 @@ export default function PrescribePage() {
   
   const { prescription, savePrescription } = usePrescription(latestVisit?.id || "");
 
-  const [items, setItems] = useState<any[]>(prescription?.items || [{ id: Date.now() }]);
+  const [items, setItems] = useState<any[]>(prescription?.items || [{ id: crypto.randomUUID() }]);
   const [pathya, setPathya] = useState(prescription?.pathya || "");
   const [apathya, setApathya] = useState(prescription?.apathya || "");
   const [vihara, setVihara] = useState(prescription?.vihara || "");
   const [notes, setNotes] = useState(prescription?.notes || "");
+  
+  // Panchakarma State
+  const [pkEnabled, setPkEnabled] = useState(false);
+  const [pkName, setPkName] = useState("");
+  const [pkTotalDays, setPkTotalDays] = useState(7);
+  const [pkDays, setPkDays] = useState(Array.from({ length: 7 }).map((_, i) => ({ dayNumber: i + 1, notes: "" })));
+
   const [isSaving, setIsSaving] = useState(false);
   const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(null);
   useEffect(() => {
     if (prescription) {
-      setItems(prescription.items?.length > 0 ? prescription.items : [{ id: Date.now() }]);
+      setItems(prescription.items?.length > 0 ? prescription.items : [{ id: crypto.randomUUID() }]);
       setPathya(prescription.pathya || "");
       setApathya(prescription.apathya || "");
       setVihara(prescription.vihara || "");
@@ -37,10 +45,10 @@ export default function PrescribePage() {
     }
   }, [prescription]);
 
-  const handleAddItem = () => setItems(prev => [...prev, { id: Date.now() }]);
-  const handleRemoveItem = (id: number) => setItems(prev => prev.filter(item => item.id !== id));
+  const handleAddItem = () => setItems(prev => [...prev, { id: crypto.randomUUID() }]);
+  const handleRemoveItem = (id: string | number) => setItems(prev => prev.filter(item => item.id !== id));
 
-  const updateItem = (id: number, field: string, value: any) => {
+  const updateItem = (id: string | number, field: string, value: any) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
 
@@ -52,8 +60,13 @@ export default function PrescribePage() {
     
     // Validate items
     const validItems = items.filter(i => i.customMedicineName || i.inventoryId);
-    if (validItems.length === 0 && !pathya && !apathya && !vihara && !notes) {
+    if (validItems.length === 0 && !pathya && !apathya && !vihara && !notes && !pkEnabled) {
       toast.error("Cannot save an empty prescription.");
+      return;
+    }
+
+    if (pkEnabled && !pkName) {
+      toast.error("Please enter a name for the Panchakarma treatment.");
       return;
     }
 
@@ -77,10 +90,21 @@ export default function PrescribePage() {
         notes,
         items: payloadItems
       });
+
+      if (pkEnabled) {
+        await api.post('/panchakarma', {
+          patientId: patient?.id,
+          visitId: latestVisit?.id,
+          name: pkName,
+          totalDays: pkTotalDays,
+          days: pkDays
+        });
+      }
+
       toast.success("Prescription saved successfully!");
       router.push(`/dashboard/patients/${patient?.id || params.id}`);
     } catch (err) {
-      toast.error("Failed to save prescription.");
+      toast.error("Failed to save prescription or treatment.");
     } finally {
       setIsSaving(false);
     }
@@ -143,6 +167,89 @@ export default function PrescribePage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Panchakarma Treatment Designer */}
+        <div className="premium-card p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">Panchakarma Treatment <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] uppercase tracking-wider">Designer</span></h2>
+              <p className="text-sm text-muted-foreground mt-1">Design a multi-day Ayurvedic treatment plan for this patient.</p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={pkEnabled}
+                onChange={(e) => setPkEnabled(e.target.checked)}
+                className="w-5 h-5 rounded border-border text-primary focus:ring-primary/20 cursor-pointer"
+              />
+              <span className="font-semibold text-sm">Enable</span>
+            </label>
+          </div>
+
+          {pkEnabled && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 border border-primary/20 bg-primary/5 rounded-xl">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold">Treatment Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Vamana Karma, Basti"
+                    value={pkName}
+                    onChange={(e) => setPkName(e.target.value)}
+                    className="w-full p-3 bg-background border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold">Total Days</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      min="1" max="90"
+                      value={pkTotalDays}
+                      onChange={(e) => {
+                        const days = parseInt(e.target.value) || 1;
+                        setPkTotalDays(days);
+                        setPkDays(Array.from({ length: days }).map((_, i) => ({
+                          dayNumber: i + 1,
+                          notes: pkDays[i]?.notes || ""
+                        })));
+                      }}
+                      className="w-full p-3 bg-background border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wider">Daily Protocol</h3>
+                <div className="grid gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                  {pkDays.map((day, idx) => (
+                    <div key={idx} className="flex items-start gap-4 p-3 bg-muted/20 border border-border rounded-lg">
+                      <div className="shrink-0 w-16 text-center py-2 bg-secondary rounded text-secondary-foreground font-bold text-sm">
+                        Day {day.dayNumber}
+                      </div>
+                      <input 
+                        type="text"
+                        placeholder="Daily instructions, oils to use, diet..."
+                        value={day.notes}
+                        onChange={(e) => {
+                          const newDays = [...pkDays];
+                          newDays[idx].notes = e.target.value;
+                          setPkDays(newDays);
+                        }}
+                        className="w-full p-2 bg-background border border-border rounded outline-none focus:border-primary text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Ayurvedic Diet & Lifestyle */}

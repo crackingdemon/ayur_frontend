@@ -6,6 +6,8 @@ import { Package, Search, Plus, AlertCircle, Loader2, ArrowUpDown, Filter, X, Sa
 import { useInventoryList } from "@/hooks/useInventoryList";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { AddMedicineModal } from "@/components/forms/AddMedicineModal";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -132,73 +134,72 @@ export default function InventoryPage() {
           </button>
         </div>
 
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead className="sticky top-0 bg-muted/80 backdrop-blur-md z-10 border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
-              <tr>
-                <th className="px-6 py-4 font-bold flex items-center gap-1 cursor-pointer hover:text-foreground">Medicine Name <ArrowUpDown size={12} /></th>
-                <th className="px-6 py-4 font-bold">Type</th>
-                <th className="px-6 py-4 font-bold">Current Stock</th>
-                <th className="px-6 py-4 font-bold">Price</th>
-                <th className="px-6 py-4 font-bold">Status</th>
-                <th className="px-6 py-4 font-bold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {isLoading ? (
+        {inventory.length === 0 && !isLoading ? (
+          <EmptyState 
+            icon={Package} 
+            title="No medicines found" 
+            description="Your inventory is empty or no items match your search. Add a new medicine to get started."
+            action={<button onClick={() => setIsAddModalOpen(true)} className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold">Add First Medicine</button>}
+          />
+        ) : (
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left border-collapse whitespace-nowrap">
+              <thead className="sticky top-0 bg-muted/80 backdrop-blur-md z-10 border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-                    <p className="text-muted-foreground font-medium">Loading Inventory...</p>
-                  </td>
+                  <th className="px-6 py-4 font-bold flex items-center gap-1 cursor-pointer hover:text-foreground">Medicine Name <ArrowUpDown size={12} /></th>
+                  <th className="px-6 py-4 font-bold">Type</th>
+                  <th className="px-6 py-4 font-bold">Current Stock</th>
+                  <th className="px-6 py-4 font-bold">Price</th>
+                  <th className="px-6 py-4 font-bold">Status</th>
+                  <th className="px-6 py-4 font-bold text-right">Actions</th>
                 </tr>
-              ) : inventory.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center">
-                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Package className="text-muted-foreground" size={32} />
-                    </div>
-                    <p className="text-lg font-bold text-foreground mb-1">No medicines found</p>
-                    <p className="text-sm text-muted-foreground">Adjust your search or add a new medicine.</p>
-                  </td>
-                </tr>
-              ) : (
-                inventory.map((item: any) => (
-                  <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
-                          <Package size={14} />
-                        </div>
-                        <span className="font-bold text-foreground">{item.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-xs font-semibold bg-secondary text-secondary-foreground px-2 py-1 rounded-md">{item.type}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`font-black text-lg ${item.stockCount < 20 ? "text-amber-500" : "text-foreground"}`}>
-                        {item.stockCount}
-                      </span>
-                      <span className="text-xs text-muted-foreground ml-1 font-medium">{item.unit}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-bold text-foreground">₹{item.price.toFixed(2)}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(item.stockCount)}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="text-primary font-bold hover:underline text-sm cursor-pointer px-3 py-1.5 rounded hover:bg-primary/10 transition-colors">
-                        Restock / Edit
-                      </button>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+                      <p className="text-muted-foreground font-medium">Loading Inventory...</p>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  inventory.map((item: any) => (
+                    <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
+                            <Package size={14} />
+                          </div>
+                          <span className="font-bold text-foreground">{item.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-semibold bg-secondary text-secondary-foreground px-2 py-1 rounded-md">{item.type}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`font-black text-lg ${item.stockCount < 20 ? "text-amber-500" : "text-foreground"}`}>
+                          {item.stockCount}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-1 font-medium">{item.unit}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-foreground">₹{item.price.toFixed(2)}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {getStatusBadge(item.stockCount)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button className="text-primary font-bold hover:underline text-sm cursor-pointer px-3 py-1.5 rounded hover:bg-primary/10 transition-colors">
+                          Restock / Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Pagination Controls */}
         <div className="border-t border-border p-4 flex items-center justify-between bg-muted/20 shrink-0">
@@ -227,100 +228,7 @@ export default function InventoryPage() {
         </div>
       </motion.div>
 
-      {/* Add Medicine Modal Component */}
-      <AnimatePresence>
-        {isAddModalOpen && (
-          <AddMedicineModal onClose={() => setIsAddModalOpen(false)} onAdd={() => { mutate(); setIsAddModalOpen(false); }} />
-        )}
-      </AnimatePresence>
+      <AddMedicineModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAdd={() => { mutate(); setIsAddModalOpen(false); }} />
     </div>
-  );
-}
-
-function AddMedicineModal({ onClose, onAdd }: { onClose: () => void, onAdd: () => void }) {
-  const [formData, setFormData] = useState({ name: "", type: "Vati", stockCount: 0, unit: "pills", price: 0 });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      await api.post("/inventory", formData);
-      toast.success("Medicine added to inventory successfully!");
-      onAdd();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || "Failed to add medicine");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <>
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
-      />
-      <motion.div 
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed inset-y-0 right-0 w-full md:w-[450px] bg-card border-l border-border shadow-2xl z-50 flex flex-col"
-      >
-        <div className="p-6 border-b border-border flex justify-between items-center bg-muted/30">
-          <h2 className="text-xl font-bold tracking-tight">Add New Medicine</h2>
-          <button onClick={onClose} className="p-2 bg-background border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shadow-sm"><X size={20} /></button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 flex-1 overflow-y-auto space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Medicine Name</label>
-            <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium" placeholder="e.g. Ashwagandha Churna" />
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Ayurvedic Type</label>
-            <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium">
-              <option value="Vati">Vati (Tablets)</option>
-              <option value="Churna">Churna (Powder)</option>
-              <option value="Asava/Arishta">Asava / Arishta (Liquid)</option>
-              <option value="Ghrita">Ghrita (Ghee)</option>
-              <option value="Taila">Taila (Oil)</option>
-              <option value="Bhasma">Bhasma</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Initial Stock</label>
-              <input required type="number" min="0" value={formData.stockCount} onChange={e => setFormData({...formData, stockCount: parseInt(e.target.value) || 0})} className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Unit</label>
-              <input required type="text" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-full p-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium" placeholder="pills, grams, ml" />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Price (per unit)</label>
-            <div className="relative">
-              <span className="absolute left-3 top-3.5 text-muted-foreground font-bold font-mono">₹</span>
-              <input required type="number" step="0.01" min="0" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value) || 0})} className="w-full pl-8 pr-3 py-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-bold" />
-            </div>
-          </div>
-        </form>
-
-        <div className="p-6 border-t border-border bg-muted/30">
-          <button disabled={isSubmitting} onClick={handleSubmit} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-            {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Save Medicine
-          </button>
-        </div>
-      </motion.div>
-    </>
   );
 }
