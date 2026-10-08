@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { api } from '../lib/api';
+import { Prescription } from '../types';
 
 export function usePrescription(visitId: string) {
   const { data, error, isLoading, mutate } = useSWR(
@@ -7,7 +8,7 @@ export function usePrescription(visitId: string) {
     (url) => api.get(url).then(res => res.data)
   );
 
-  const savePrescription = async (prescriptionData: any) => {
+  const savePrescription = async (prescriptionData: Partial<Prescription>) => {
     try {
       const res = await api.post(`/prescriptions/visit/${visitId}`, prescriptionData);
       mutate(res.data);

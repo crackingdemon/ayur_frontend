@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from 'sonner';
 
 // Create an Axios instance with base configuration
 export const api = axios.create({
@@ -6,15 +7,11 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('vaidyaos_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    
     const facilityId = localStorage.getItem('vaidyaos_facility');
     if (facilityId) {
       config.headers['x-facility-id'] = facilityId;
@@ -31,11 +28,16 @@ api.interceptors.response.use(
     // will trigger Next.js's red Error Overlay in development.
     if (error.response?.status === 401) {
        if (typeof window !== 'undefined') {
-         localStorage.removeItem('vaidyaos_token');
          localStorage.removeItem('vaidyaos_user');
          localStorage.removeItem('vaidyaos_org');
          window.location.href = '/login';
        }
+    } else if (error.response?.status >= 500) {
+      toast.error('Server error. Please try again later.');
+    } else if (error.response?.data?.error) {
+      // toast.error(error.response.data.error); // Optional: global toast for 400s
+    } else if (error.message === 'Network Error') {
+      toast.error('Network error. Please check your connection.');
     }
     return Promise.reject(error);
   }

@@ -10,7 +10,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 
 export default function PatientsDirectory() {
-  const { patients, isLoading, isError: error } = usePatients();
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const { patients, meta, isLoading, isError: error } = usePatients(undefined, page, limit);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   if (isLoading) {
@@ -75,56 +77,83 @@ export default function PatientsDirectory() {
             action={<Button onClick={() => setIsAddModalOpen(true)}>Add First Patient</Button>}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground text-sm bg-muted/20">
-                  <th className="py-3 font-semibold pl-4 rounded-tl-lg">Patient Name</th>
-                  <th className="py-3 font-semibold">Contact</th>
-                  <th className="py-3 font-semibold">Details</th>
-                  <th className="py-3 font-semibold">Last Visit</th>
-                  <th className="py-3 font-semibold text-right pr-4 rounded-tr-lg">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {patients.map((patient) => {
-                  const latestVisit = patient.visits?.[0];
-                  return (
-                    <tr key={patient.id} className="border-b border-border hover:bg-muted/30 transition-colors group">
-                      <td className="py-4 pl-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                            {patient.name.split(' ').map(n => n[0]).join('')}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground text-sm bg-muted/20">
+                    <th className="py-3 font-semibold pl-4 rounded-tl-lg">Patient Name</th>
+                    <th className="py-3 font-semibold">Contact</th>
+                    <th className="py-3 font-semibold">Details</th>
+                    <th className="py-3 font-semibold">Last Visit</th>
+                    <th className="py-3 font-semibold text-right pr-4 rounded-tr-lg">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {patients.map((patient) => {
+                    const latestVisit = patient.visits?.[0];
+                    return (
+                      <tr key={patient.id} className="border-b border-border hover:bg-muted/30 transition-colors group">
+                        <td className="py-4 pl-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                              {patient.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-sm text-foreground block">{patient.name}</span>
+                              <span className="text-xs text-muted-foreground">ID: PT-{patient.id.substring(0, 4).toUpperCase()}</span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="font-semibold text-sm text-foreground block">{patient.name}</span>
-                            <span className="text-xs text-muted-foreground">ID: PT-{patient.id.substring(0, 4).toUpperCase()}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <span className="text-sm font-medium">{patient.phone}</span>
-                      </td>
-                      <td className="py-4">
-                        <span className="text-xs text-muted-foreground">{patient.age} Yrs • {patient.gender}</span>
-                        <p className="text-sm font-medium mt-0.5">{latestVisit?.reason || 'No visits yet'}</p>
-                      </td>
-                      <td className="py-4">
-                        <span className="text-sm font-medium">{latestVisit ? new Date(latestVisit.date).toLocaleDateString() : 'N/A'}</span>
-                      </td>
-                      <td className="py-4 text-right pr-4">
-                        <Link href={`/dashboard/patients/${patient.id}`}>
-                          <button className="px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground rounded-md transition-colors inline-flex items-center gap-1 cursor-pointer border border-border hover:border-primary">
-                            View Profile <ChevronRight size={14} />
-                          </button>
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="py-4">
+                          <span className="text-sm font-medium">{patient.phone}</span>
+                        </td>
+                        <td className="py-4">
+                          <span className="text-xs text-muted-foreground">{patient.age} Yrs • {patient.gender}</span>
+                          <p className="text-sm font-medium mt-0.5">{latestVisit?.reason || 'No visits yet'}</p>
+                        </td>
+                        <td className="py-4">
+                          <span className="text-sm font-medium">{latestVisit ? new Date(latestVisit.date).toLocaleDateString() : 'N/A'}</span>
+                        </td>
+                        <td className="py-4 text-right pr-4">
+                          <Link href={`/dashboard/patients/${patient.id}`}>
+                            <button className="px-3 py-1.5 text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground rounded-md transition-colors inline-flex items-center gap-1 cursor-pointer border border-border hover:border-primary">
+                              View Profile <ChevronRight size={14} />
+                            </button>
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination UI */}
+            {meta && meta.totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-border mt-6 pt-4 px-2">
+                <span className="text-sm text-muted-foreground font-medium">
+                  Showing {(page - 1) * limit + 1} to {Math.min(page * limit, meta.total)} of {meta.total} patients
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    onClick={() => setPage(p => Math.max(1, p - 1))} 
+                    disabled={page === 1}
+                    className="h-8 px-3 text-xs bg-muted text-foreground hover:bg-muted/80 border border-border"
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm font-semibold px-2">Page {page} of {meta.totalPages}</span>
+                  <Button 
+                    onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))} 
+                    disabled={page === meta.totalPages}
+                    className="h-8 px-3 text-xs bg-muted text-foreground hover:bg-muted/80 border border-border"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </motion.div>
 

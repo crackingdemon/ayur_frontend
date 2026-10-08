@@ -3,6 +3,7 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SentryProvider } from "@/components/SentryProvider";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -22,10 +23,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${outfit.variable} h-full antialiased`}>
       <body suppressHydrationWarning className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-300">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
-        <Toaster richColors position="top-right" />
+        <SentryProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+          <Toaster richColors position="top-right" />
+        </SentryProvider>
       </body>
     </html>
   );

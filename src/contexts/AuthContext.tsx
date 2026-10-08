@@ -19,7 +19,7 @@ interface Organization {
 interface AuthContextType {
   user: User | null;
   organization: Organization | null;
-  login: (token: string, user: User, org: Organization) => void;
+  login: (user: User, org: Organization) => void;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -34,19 +34,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Check local storage on mount
-    const token = localStorage.getItem('vaidyaos_token');
     const storedUser = localStorage.getItem('vaidyaos_user');
     const storedOrg = localStorage.getItem('vaidyaos_org');
 
-    if (token && storedUser && storedOrg) {
+    if (storedUser && storedOrg) {
       setUser(JSON.parse(storedUser));
       setOrganization(JSON.parse(storedOrg));
     }
     setIsLoading(false);
   }, []);
 
-  const login = (token: string, userData: User, orgData: Organization) => {
-    localStorage.setItem('vaidyaos_token', token);
+  const login = (userData: User, orgData: Organization) => {
     localStorage.setItem('vaidyaos_user', JSON.stringify(userData));
     localStorage.setItem('vaidyaos_org', JSON.stringify(orgData));
     
@@ -54,8 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOrganization(orgData);
   };
 
-  const logout = () => {
-    localStorage.removeItem('vaidyaos_token');
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      console.error('Logout API failed', e);
+    }
     localStorage.removeItem('vaidyaos_user');
     localStorage.removeItem('vaidyaos_org');
     
