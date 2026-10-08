@@ -77,6 +77,7 @@ export default function PatientsDirectory() {
             action={<Button onClick={() => setIsAddModalOpen(true)}>Add First Patient</Button>}
           />
         ) : (
+          <>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
